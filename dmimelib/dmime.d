@@ -14,18 +14,22 @@ class Address
         return this._gmaddress.get_name();
     }
 
-    void name( string):
-        this._gmaddress.set_name(string)
-
-    def address()
+    void name( string)
     {
-        if this.is_mailbox():
-            return this._gmaddress.to_internet_address_mailbox().get_addr()
-        else:
-            gm_ial = this._gmaddress.to_internet_address_group().get_members()
-            out = AddressList()
-            out._gm_address_list = gm_ial
-            return out
+        this._gmaddress.set_name(string);
+    }
+
+    string address()
+    {
+        if this.isMailbox()
+            return this._gmaddress.to_internet_address_mailbox().get_addr();
+        else
+        {
+            auto gm_ial = this._gmaddress.to_internet_address_group().get_members();
+            auto out = AddressList();
+            out._gm_address_list = gm_ial;
+            return out;
+        }
     }
 
     def address( addr):
@@ -59,48 +63,67 @@ class Address
         return obj
 
 
-class AddressList(object):
+class AddressList
+{
+    string[] __slots__ = ["_gm_address_list"]
 
-    __slots__ = ["_gm_address_list"]
+    this( addresses = null)
+    {
+        this._gm_address_list = gmimelib.InternetAddressList();
+        if addresses
+        {
+            foreach(a;addresses)
+                this.append(a);
+        }
 
-    def __init__( addresses = null):
-        this._gm_address_list = gmimelib.InternetAddressList()
-        if addresses:
-            for a in addresses:
-                this.append(a)
-
-    def __getitem__( idx):
-        if idx < len():
-            gmaddress = this._gm_address_list.get_address(idx)
-            return Address._from_gmime_address(gmaddress)
+    private auto __getitem__( idx)
+    {
+        if (idx < len())
+        {
+            gmaddress = this._gm_address_list.get_address(idx);
+            return Address._from_gmime_address(gmaddress);
+        }
         else:
-            raise AddressListError, idx
+            throw new Exception(AddressListError, idx);
+    }
 
-    def __len__():
-        return this._gm_address_list.length()
+    private auto __len__()
+    {
+        return this._gm_address_list.length();
+    }
 
-    def __iter__():
-        def address_generator(add_lst):
+    private auto __iter__()
+    {
+        priaddress_generator(add_lst):
             for i in xrange(len(add_lst)):
                 yield add_lst[i]
         return address_generator()
+    }
 
-    def __bool__():
-        return len()
+    private auto __bool__()
+    {
+        return len();
+    }
 
-    def __str__():
-        return this._gm_address_list.to_string()
+    private auto  __str__()
+    {
+       return this._gm_address_list.to_string();
+    }
 
-    def extend( other):
-        this._gm_address_list.append(other._gm_address_list)
+    void extend( other)
+    {
+        this._gm_address_list.append(other._gm_address_list);
+    }
 
     def __add__( other):
         new_list = AddressList()
         new_list._gm_address_list = copy.deepcopy(this._gm_address_list)
         new_list.extend(other)
 
-    def append( addr):
-        this._gm_address_list.add(addr._gmaddress.to_internet_address())
+    void append( addr)
+    {
+        this._gm_address_list.add(addr._gmaddress.to_internet_address());
+    }
 
     @classmethod
     def from_string(cls, address_list):
@@ -108,18 +131,29 @@ class AddressList(object):
         c._gm_address_list = gmimelib.parse_internet_address_list(address_list)
         return c
 
-    def remove( addr):
-        try:
-            this._gm_address_list.remove(addr._gmaddress)
-        except gmimelib.InternetAddressListError as err:
-            raise AddressListError, err
+    void remove( addr)
+    {
+        try
+        {
+            this._gm_address_list.remove(addr._gmaddress);
+        }
+        except gmimelib.InternetAddressListError as err
+            raise AddressListError, err;
+    }
 
-    def remove_at( idx):
-        try:
+    void removeAt( idx)
+    {
+        try
+        {
             this._gm_address_list.remove_at(idx)
-        except gmimelib.InternetAddressListError as err:
-            raise AddressListError, err
-
+        }
+        catch Exception e)
+        {
+            except gmimelib.InternetAddressListError as err
+                throw new Exception(AddressListError, err);
+        }
+    }
+}
 
 class References
 {
@@ -131,176 +165,270 @@ class References
         this.refs = gmimelib.decode_references(references_str)
         this._full_refs = gmimelib.decode_references(references_str)
     }   
-    def __iter__():
+
+    private auto  __iter__()
+    {
         return this
+    }
 
-    def next():
-        if this.refs._is_null():
-            this.refs = this._full_refs
-            raise StopIteration
-        else:
-            msgid = this.refs.get_message_id()
-            this.refs = this.refs.get_next()
-            return msgid
+    auto next()
+    {
+        if (this.refs._is_null())
+        {
+            this.refs = this._full_refs;
+            raise StopIteration;
+        }
+        else
+        {
+            msgid = this.refs.get_message_id();
+            this.refs = this.refs.get_next();
+            return msgid;
+        }
+    }
 
-    def __len__():
-        return len(list())
+    private auto __len__()
+    {
+        return list.length;
+    }
+}
+class Header
+{
+    string name;
+    string value;
 
-class Header(object):
+    def __init__( name, value)
+    {
+        this.name = name;
+        this.value = value;
+    }
 
-    def __init__( name, value):
-        this.name = name
-        this.value = value
+    string toString()
+    {
+        return format("Header(%s: %s)",this.name, this.value);
+    }
+}
 
-    def __repr__():
-        return "Header(%s: %s)" % (this.name, this.value)
+class Headers
+{
+    this( gmime_headers)
+    {
+        this._headers = gmime_headers;
+        this._iter_done = false;
+    }
 
-class Headers(object):
-
-    def __init__( gmime_headers):
-        this._headers = gmime_headers
-        this._iter_done = false
-
-    def get( name):
+    auto get( name)
+    {
         try:
-            return this._headers.get(name)
-        except KeyError:
-            return null
+            return this._headers.get(name);
+        except KeyError
+            return null;
+    }
 
-    def __iter__():
-        return this
+    private auto  __iter__()
+    {
+        return this;
+    }
 
-    def next():
-        if this._iter_done:
-            this._headers.iter_first()
-            this._iter_done = false
-            raise StopIteration
-        out = Header(this._headers.iter_get_name(), this._headers.iter_get_value())
-        if not this._headers.iter_next():
-            this._iter_done = true
-        return out
+    auto next()
+    {
+        if this._iter_done
+        {
+            this._headers.iter_first();
+            this._iter_done = false;
+            raise StopIteration;
+        }
+        auto _out = Header(this._headers.iter_get_name(), this._headers.iter_get_value());
+        if (not this._headers.iter_next())
+            this._iter_done = true;
+        return _out;
+    }
+}
 
-class Parser(object):
+class Parser
+{
+    this()
+    {
+        this.stream = null;
+        this.stream_parser = null;
+    }
 
-    def __init__():
-        this.stream = null
-        this.stream_parser = null
-
-    def _from_stream( stream):
+    this(stream)
+    {
         this.stream = stream
+        this.stream_parser = null;
+    }
 
-    def read_file( filename):
-        this.stream = gmimelib.Stream()
-        try:
-            this.stream.from_file(filename)
-        except gmimelib.Error as err:
-            raise ParserError, err
+    def read_file( filename)
+    {
+        this.stream = gmimelib.Stream();
+        try
+        {
+            this.stream.from_file(filename);
+        }
+        catch(gmimelibException e)
+        {
+            throw new ParserException(err);
+        }
 
-    def read_fd( fd):
-        this.stream = gmimelib.Stream()
-        this.stream.from_fd(fd)
+    auto read_fd( fd)
+    {
+        this.stream = gmimelib.Stream();
+        this.stream.from_fd(fd);
+    }
 
-    def read_string( bts):
-        this.stream = gmimelib.Stream()
-        this.stream.from_bytes(bts)
+    auto read_string( bts)
+    {
+        this.stream = gmimelib.Stream();
+        this.stream.from_bytes(bts);
+    }
 
-    def parse():
-        if this.stream is null:
-            raise ParserError, "Nothing to parse"
-        else:
-            parser = this.stream.make_parser()
-            msg = parser.construct_message()
-            return Message(mime_object = msg)
+    auto parse()
+    {
+        if (this.stream is null)
+            throw new ParserException("Nothing to parse");
+        else
+        {
+            parser = this.stream.make_parser();
+            msg = parser.construct_message();
+            return Message(mime_object = msg);
+        }
+    }
 
-    def _reset():
-        this.stream.reset()
+    private void _reset()
+    {
+        this.stream.reset();
+    }
 
-    def close():
-        this.stream.close()
+    void close()
+    {
+        this.stream.close();
+    }
+}
 
+class MimeObject
+{
+    /**
+        # def __init__( mime_object, parent=null):
+        #     this.mime_object = mime_object
+        #     this.parent = parent
+        #     if this.mime_object.is_message():
+        #         this._part = null
+        #     else:
+        #         this._part = mime_object
+    */
 
-class MimeObject(object):
-
-    # def __init__( mime_object, parent=null):
-    #     this.mime_object = mime_object
-    #     this.parent = parent
-    #     if this.mime_object.is_message():
-    #         this._part = null
-    #     else:
-    #         this._part = mime_object
-
-    @staticmethod
-    def _mk_mime_object(obj, parent):
-        if obj.is_message():
-            return Message(obj, parent)
-        else if obj.is_part():
-            return Part(obj, parent)
-        else if obj.is_message_part():
+    private static auto mk_mime_object(obj, parent)
+    {
+        if (obj.is_message())
+            return Message(obj, parent);
+        else if (obj.is_part())
+            return Part(obj, parent);
+        else if (obj.is_message_part())
             return MessagePart(obj, parent)
-        else if obj.is_multipart():
-            if obj.to_multipart().is_multipart_encrypted():
-                return Encrypted(obj, parent)
-            else if obj.to_multipart().is_multipart_signed():
-                return Signed(obj, parent)
-            else:
-                return Multipart(obj, parent)
-        else:
-            raise MimeObjectTypeError ("%s is not an acceptable mimeobject type" % obj)
+        else if (obj.is_multipart())
+        {
+            if (obj.to_multipart().is_multipart_encrypted())
+                return Encrypted(obj, parent);
+            else if (obj.to_multipart().is_multipart_signed())
+                return Signed(obj, parent);
+            else
+                return Multipart(obj, parent);
+        }
+        else
+            throw new MimeObjectTypeError(format("%s is not an acceptable mimeobject type" , obj));
+    }
 
-    def __init__():
-        this._part = null
+    this()
+    {
+        this._part = null;
+    }
 
 
-    # We don't want to parse out the mime part unless we need it. So
-    # we make a decorator that will make the _part attribute if
-    # needed.
-    def _requires_part(fun):
-        def internal_fun ( *args):
-            if not this._part:
-                this._part = this.mime_object.get_mime_part()
-            return fun( *args)
-        return internal_fun
+    /**
+        We don't want to parse out the mime part unless we need it. So
+        we make a decorator that will make the _part attribute if
+        needed.
+    */
 
-    def get_headers():
-        return Headers(this.mime_object.get_headers())
+    auto _requires_part(fun)
+    {
+        def internal_fun ( *args)
+        {
+            if  (!this._part)
+                this._part = this.mime_object.get_mime_part();
+            return fun( *args);
+        }
+        return internal_fun;
+    }
 
-    def get_content_type():
-        try:
-            h = this.get_headers()
-            ct_str = h.get('content-type')
-            ct = gmimelib.string_to_content_type(ct_str)
-            return (ct.get_media_type(), ct.get_media_subtype())
-        except HeaderNameError:
-            return null
+    auto get_headers()
+    {
+        return Headers(this.mime_object.get_headers());
+    }
 
-    def get_parameters():
-        try:
-            h = this.get_headers()
-            ct_str = h.get('content-type')
-            ct = gmimelib.string_to_content_type(ct_str)
-            def paramgen(content_type):
-                param = content_type.get_params()
-                while not param._is_null():
-                    yield (param.get_name(), param.get_value())
-                    param = param.next()
-            return paramgen(ct)
-        except HeaderNameError:
-            return null
+    auto get_content_type()
+    {
+        try
+        {
+            auto h = this.get_headers();
+            auto ct_str = h.get('content-type');
+            auto ct = gmimelib.string_to_content_type(ct_str);
+            return (ct.get_media_type(), ct.get_media_subtype());
+        }
+        catch(HeaderNameException)
+        {
+            return null;
+        }
+    }
 
-    def get_content_description ():
-        return null
+    auto get_parameters()
+    {
+        try
+        {
+            auto h = this.get_headers();
+            auto ct_str = h.get('content-type');
+            auto ct = gmimelib.string_to_content_type(ct_str);
+            auto paramgen(content_type)
+            {
+                auto param = content_type.get_params();
+                while  (!param._is_null())
+                {
+                    yield (param.get_name(), param.get_value());
+                    param = param.next();
+                }
+            }
+            return paramgen(ct);
+        }
+        catch(HeaderNameException e)
+        {
+            return null;
+        }
+    }
 
-    def get_content_id ():
-        return null
+    auto get_content_description ()
+    {
+        return null;
+    }
 
-    def get_content_md5 ():
-        return null
+    auto get_content_id ()
+    {
+        return null;
+    }
 
-    def verify_content_md5 ():
-        raise MimeObjectTypeError
+    auto get_content_md5 ()
+    {
+        return null;
+    }
 
-    def get_content_location ():
-        return null
+    auto verify_content_md5 ()
+    {
+        raise MimeObjectTypeError;
+    }
+
+    auto get_content_location ()
+    {
+        return null;
+    }
 
     def get_content_encoding ():
         return null
@@ -327,55 +455,85 @@ class MimeObject(object):
     def get_child( idx):
         raise MultipartError
 
-    def has_children():
-        return false
+    auto has_children()
+    {
+        return false;
+    }
 
-    def children ():
-        raise MultipartError, "No children"
+    auto children ()
+    {
+        raise MultipartError, "No children";
+    }
 
-    def __iter__():
-        return this.children()
+    private auto __iter__()
+    {
+        return this.children();
+    }
 
-    def get_data():
-        return null
+    auto get_data()
+    {
+        return null;
+    }
 
-    def to_string():
-        return this.mime_object.to_string()
+    auto to_string()
+    {
+        return this.mime_object.to_string();
+    }
 
-    def walk():
-        if not this.has_children():
-            yield this
-        else:
-            for child in this:
-                for grandchild in child.walk():
-                    yield grandchild
-                
+    auto walk()
+    {
+        if (!this.has_children())
+            yield this;
+        else
+        {
+            foreach(child;this)
+            {
+                foreach(grandchild;child.walk())
+                    yield grandchild;
+            }
+        }
+    }
+}            
 
-class Message(MimeObject):
+class Message:MimeObject
+{
 
     def __init__( mime_object, parent=null):
         this.mime_object = mime_object
         this.parent = parent
         #super(Message, this).__init__(msg, parent)
 
-    def is_message():
-        return true
+    def isMessage()
+    {
+        return true;
+    }
 
-    def get_child_count():
-        return 1
+    def getChildCount()
+    {
+        return 1;
+    }
 
-    def has_children():
-        return true
+    auto hasChildren()
+    {
+        return true;
+    }
 
-    def get_child( idx):
-        if idx > 0:
-            return MultipartError, idx
-        else:
-            prt = this.mime_object.get_mime_part()
-            return MimeObject._mk_mime_object(prt, this)
+    auto getChild( idx)
+    {
+        if (idx > 0)
+            return tuple(MultipartError, idx);
+        else
+        {
+            auto prt = this.mime_object.get_mime_part();
+            return MimeObject._mk_mime_object(prt, this);
+        }
+    }
 
-    def children():
-        yield this.get_child(0)
+    auto children()
+    {
+        yield this.get_child(0);
+    }
+}
 
 class MessagePart:MimeObject
 {
@@ -421,33 +579,51 @@ class Part:MimeObject
         #super(Part, this).__init__(part, parent);
     }
 
-    def is_part():
-        return true
+    bool is_part()
+    {
+        return true;
+    }
 
-    def get_content_description ():
-        return this.mime_object.to_part().get_content_description()
+    auto get_content_description ()
+    {
+        return this.mime_object.to_part().get_content_description();
+    }
 
-    def get_content_id ():
-        return this.mime_object.to_part().get_content_id ()
+    auto get_content_id ()
+    {
+        return this.mime_object.to_part().get_content_id ();
+    }
 
-    def get_content_md5 ():
-        return this.mime_object.to_part().get_content_md5 ()
+    auto get_content_md5 ()
+    {
+        return this.mime_object.to_part().get_content_md5 ();
+    }
 
-    def verify_content_md5 ():
-        return this.mime_object.to_part().verify_content_md5 ()
+    auto verify_content_md5
+    {
+        return this.mime_object.to_part().verify_content_md5 ();
+    }
 
-    def get_content_location ():
-        this.mime_object.to_part().get_content_location ()
+    auto get_content_location ()
+    {
+        this.mime_object.to_part().get_content_location ();
+    }
 
-    def get_content_encoding ():
-        return this.mime_object.to_part().get_content_encoding ()
+    auto get_content_encoding ()
+    {
+        return this.mime_object.to_part().get_content_encoding ();
+    }
 
-    def get_filename ():
-        return this.mime_object.to_part().get_filename ()
+    auto get_filename ()
+    {
+        return this.mime_object.to_part().get_filename ();
+    }
 
-    def get_data():
-        datawrapper = this.mime_object.to_part().get_content_object()
-        return datawrapper.get_data()
+    auto get_data()
+    {
+        datawrapper = this.mime_object.to_part().get_content_object();
+        return datawrapper.get_data();
+    }
 
 class Multipart:MimeObject
 {
@@ -458,24 +634,36 @@ class Multipart:MimeObject
         this.parent = parent;
         // super(Multipart, this).__init__(multipart, parent)
     }
-    def is_multipart():
+    bool is_multipart()
+    {
         return true
+    }
 
-    def is_encryptes():
-        return false
+    bool is_encryptes()
+    {
+        return false;
+    }
 
-    def is_signed():
-        return false
+    bool is_signed()
+    {
+        return false;
+    }
 
-    def get_child_count():
-        return this.mime_object.to_multipart().get_count()
+    auto get_child_count()
+    {
+        return this.mime_object.to_multipart().get_count();
+    }
 
-    def get_child( idx):
-        if idx >= this.get_child_count():
-            raise MultipartError
-        else:
-            prt = this.mime_object.to_multipart().get_part(idx)
-            return MimeObject._mk_mime_object(prt, this)
+    auto get_child( idx)
+    {
+        if (idx >= this.get_child_count())
+            raise MultipartError;
+        else
+        {
+            auto prt = this.mime_object.to_multipart().get_part(idx);
+            return MimeObject._mk_mime_object(prt, this);
+        }
+    }
 
     def has_children():
         return true
@@ -483,35 +671,40 @@ class Multipart:MimeObject
     def children():
         for idx in xrange(this.get_child_count()):
             yield this.get_child(idx)
+}
 
-
-class Encrypted(Multipart):
+class Encrypted(Multipart)
+{
 
     def __init__( mime_object, parent=null):
         super(Encrypted, this).__init__(mime_object, parent)
 
-    def is_encryptes():
-        return true
+    def is_encryptes()
+    {
+        return true;
+    }
 
-    def decrypt( passphrase=null):
-        if not GPG_ENABLED:
-            raise PygmiError, "The GnuPGInterface module is not available. Can't decrypt."
+    auto decrypt( passphrase=null)
+    {
+        if (!GPG_ENABLED)
+            throw new DMimeException("The GnuPGInterface module is not available. Can't decrypt.");
 
-        ciphertext = this.get_child(1).get_data()
+        auto ciphertext = this.get_child(1).get_data();
         
-        gnupg = GnuPGInterface.GnuPG()
-        if passphrase:
-            gnupg.passphrase = passphrase
+        auto gnupg = GnuPGInterface.GnuPG();
+        if (passphrase)
+            gnupg.passphrase = passphrase;
         
-        decrypt_proc = gnupg.run(['--decrypt'], create_fhs=['stdin', 'stdout', 'stderr'])
-        decrypt_proc.handles['stdin'].write(ciphertext)
-        decrypt_proc.handles['stdin'].close()
-        plaintext = decrypt_proc.handles['stdout'].read()
-        decrypt_proc.handles['stdout'].close()
-        decrypt_proc.wait()
+        auto decrypt_proc = gnupg.run(['--decrypt'], create_fhs=['stdin', 'stdout', 'stderr']);
+        decrypt_proc.handles['stdin'].write(ciphertext);
+        decrypt_proc.handles['stdin'].close();
+        auto plaintext = decrypt_proc.handles['stdout'].read();
+        decrypt_proc.handles['stdout'].close();
+        decrypt_proc.wait();
 
-        return plaintext
-
+        return plaintext;
+    }
+}
 class Signed:Multipart
 {
     this(mime_object, parent=null)

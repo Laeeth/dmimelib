@@ -251,7 +251,7 @@ class CipherContext
 
     auto toGpgContext()
     {
-        return mk_gpg_context (GMIME_GPG_CONTEXT(this._c_gmciphercontext));
+        return mkGpgContext (GMIME_GPG_CONTEXT(this._c_gmciphercontext));
     }
 }
 
