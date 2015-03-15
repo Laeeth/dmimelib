@@ -1,33 +1,9 @@
-module dmimelib.dmimelib;
+module dmimelib.dmime;
 import dmimelib.cbindings;
 import dmimelib.gmime;
 
-import copy
-import os
 // import GnuPGInterface
 enum GPG_ENABLED = false;
-
-
-class PygmiError(Exception):
-    pass
-
-class ParserError(Exception):
-    pass
-
-class AddressError(Exception):
-    pass
-
-class AddressListError(Exception):
-    pass
-
-class HeaderNameError(Exception):
-    pass
-
-class MimeObjectTypeError(Exception):
-    pass
-
-class MultipartError(Exception):
-    pass
 
 class Address
 {
