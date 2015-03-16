@@ -1,6 +1,8 @@
 module dmimelib.dmime;
 import dmimelib.cbindings;
 import dmimelib.gmime;
+import std.format;
+import std.string;
 
 // import GnuPGInterface
 enum GPG_ENABLED = false;
@@ -36,15 +38,15 @@ class Address
         this = this.__init__(this.name, addr)
 
     def __str__():
-        return this._gmaddress.to_string()
+        return this._gmaddress._toString()
 
-    def is_mailbox():
+    def isMailbox():
         return this._gmaddress.is_internet_address_mailbox()
 
-    def is_group():
+    def isGroup():
         return this._gmaddress.is_internet_address_group()
 
-    def from_name_and_address(cls, name, addr)
+    def fromNameAndAddress(cls, name, addr)
     {
         obj = cls()
         if isinstance(addr, str):
@@ -94,9 +96,11 @@ class AddressList
 
     private auto __iter__()
     {
-        priaddress_generator(add_lst):
-            for i in xrange(len(add_lst)):
+        private address_generator(add_lst)
+        {
+            foreach(i;0..add_lst.length):
                 yield add_lst[i]
+        }
         return address_generator()
     }
 
@@ -107,7 +111,7 @@ class AddressList
 
     private auto  __str__()
     {
-       return this._gm_address_list.to_string();
+       return this._gm_address_list._toString();
     }
 
     void extend( other)
@@ -258,7 +262,7 @@ class Parser
         this.stream_parser = null;
     }
 
-    def read_file( filename)
+    def readFile( filename)
     {
         this.stream = gmimelib.Stream();
         try
@@ -270,13 +274,13 @@ class Parser
             throw new ParserException(err);
         }
 
-    auto read_fd( fd)
+    auto readFD( fd)
     {
         this.stream = gmimelib.Stream();
         this.stream.from_fd(fd);
     }
 
-    auto read_string( bts)
+    auto readString( bts)
     {
         this.stream = gmimelib.Stream();
         this.stream.from_bytes(bts);
@@ -317,19 +321,19 @@ class MimeObject
         #         this._part = mime_object
     */
 
-    private static auto mk_mime_object(obj, parent)
+    private static auto mkMimeObject(obj, parent)
     {
         if (obj.is_message())
             return Message(obj, parent);
-        else if (obj.is_part())
+        else if (obj.isPart())
             return Part(obj, parent);
-        else if (obj.is_message_part())
+        else if (obj.isMessagePart())
             return MessagePart(obj, parent)
-        else if (obj.is_multipart())
+        else if (obj.isMultipart())
         {
-            if (obj.to_multipart().is_multipart_encrypted())
+            if (obj.to_multipart().isMultipart_encrypted())
                 return Encrypted(obj, parent);
-            else if (obj.to_multipart().is_multipart_signed())
+            else if (obj.to_multipart().isMultipart_signed())
                 return Signed(obj, parent);
             else
                 return Multipart(obj, parent);
@@ -361,18 +365,18 @@ class MimeObject
         return internal_fun;
     }
 
-    auto get_headers()
+    auto getHeaders()
     {
-        return Headers(this.mime_object.get_headers());
+        return Headers(this.mime_object.getHeaders());
     }
 
-    auto get_content_type()
+    auto getContentType()
     {
         try
         {
-            auto h = this.get_headers();
+            auto h = this.getHeaders();
             auto ct_str = h.get('content-type');
-            auto ct = gmimelib.string_to_content_type(ct_str);
+            auto ct = gmimelib.string_to_contentType(ct_str);
             return (ct.get_media_type(), ct.get_media_subtype());
         }
         catch(HeaderNameException)
@@ -385,12 +389,12 @@ class MimeObject
     {
         try
         {
-            auto h = this.get_headers();
+            auto h = this.getHeaders();
             auto ct_str = h.get('content-type');
-            auto ct = gmimelib.string_to_content_type(ct_str);
-            auto paramgen(content_type)
+            auto ct = gmimelib.string_to_contentType(ct_str);
+            auto paramgen(contentType)
             {
-                auto param = content_type.get_params();
+                auto param = contentType.get_params();
                 while  (!param._is_null())
                 {
                     yield (param.get_name(), param.get_value());
@@ -405,32 +409,32 @@ class MimeObject
         }
     }
 
-    auto get_content_description ()
+    auto getContentDescription ()
     {
         return null;
     }
 
-    auto get_content_id ()
+    auto getContentId ()
     {
         return null;
     }
 
-    auto get_content_md5 ()
+    auto getContentMd5 ()
     {
         return null;
     }
 
-    auto verify_content_md5 ()
+    auto verifyContentMd5 ()
     {
         raise MimeObjectTypeError;
     }
 
-    auto get_content_location ()
+    auto getContent_location ()
     {
         return null;
     }
 
-    def get_content_encoding ():
+    def getContentEncoding ():
         return null
 
     def get_filename ():
@@ -439,23 +443,23 @@ class MimeObject
     def is_message():
         return null
 
-    def is_part():
+    def isPart():
         return false
-        return this.mime_object.is_part()
+        return this.mime_object.isPart()
 
-    def is_message_part():
-        return false
-
-    def is_multipart():
+    def isMessagePart():
         return false
 
-    def get_child_count():
+    def isMultipart():
+        return false
+
+    def getChildCount():
         return null
 
-    def get_child( idx):
+    def getChild( idx):
         raise MultipartError
 
-    auto has_children()
+    auto hasChildren()
     {
         return false;
     }
@@ -475,14 +479,14 @@ class MimeObject
         return null;
     }
 
-    auto to_string()
+    auto _toString()
     {
-        return this.mime_object.to_string();
+        return this.mime_object._toString();
     }
 
     auto walk()
     {
-        if (!this.has_children())
+        if (!this.hasChildren())
             yield this;
         else
         {
@@ -525,13 +529,13 @@ class Message:MimeObject
         else
         {
             auto prt = this.mime_object.get_mime_part();
-            return MimeObject._mk_mime_object(prt, this);
+            return MimeObject._mkMimeObject(prt, this);
         }
     }
 
     auto children()
     {
-        yield this.get_child(0);
+        yield this.getChild(0);
     }
 }
 
@@ -547,26 +551,36 @@ class MessagePart:MimeObject
         #super(MessagePart, this).__init__(msgpart, parent)
     }
 
-    def is_message_part()
+    bool isMessagePart()
     {
         return true;
     }
 
-    def get_child_count():
-        return 1
+    bool getChildCount()
+    {
+        return 1;
+    }
 
-    def has_children():
-        return true
+    bool hasChildren()
+    {
+        return true;
+    }
 
-    def get_child():
-        if idx > 0:
-            return MultipartError, idx
-        else:
-            msg = this.mime_object.to_message_part().get_message()
-            return MimeObject._mk_mime_object(msg, this)
+    def getChild()
+    {
+        if idx > 0
+            return MultipartError, idx;
+        else
+        {
+            msg = this.mime_object.to_message_part().get_message();
+            return MimeObject._mkMimeObject(msg, this);
+        }
+    }
 
-    def children():
-        yield this.get_child(0)
+    def children()
+    {
+        yield this.getChild(0);
+    }
 }
 
 class Part:MimeObject
@@ -579,51 +593,52 @@ class Part:MimeObject
         #super(Part, this).__init__(part, parent);
     }
 
-    bool is_part()
+    bool isPart()
     {
         return true;
     }
 
-    auto get_content_description ()
+    auto getContentDescription()
     {
-        return this.mime_object.to_part().get_content_description();
+        return this.mime_object.to_part().getContentDescription();
     }
 
-    auto get_content_id ()
+    auto getContentId()
     {
-        return this.mime_object.to_part().get_content_id ();
+        return this.mime_object.to_part().getContentId ();
     }
 
-    auto get_content_md5 ()
+    auto getContentMd5()
     {
-        return this.mime_object.to_part().get_content_md5 ();
+        return this.mime_object.to_part().getContentMd5 ();
     }
 
-    auto verify_content_md5
+    auto verifyContentMd5()
     {
-        return this.mime_object.to_part().verify_content_md5 ();
+        return this.mime_object.to_part().verifyContentMd5 ();
     }
 
-    auto get_content_location ()
+    auto getContentLocation ()
     {
-        this.mime_object.to_part().get_content_location ();
+        this.mime_object.to_part().getContent_location ();
     }
 
-    auto get_content_encoding ()
+    auto getContentEncoding ()
     {
-        return this.mime_object.to_part().get_content_encoding ();
+        return this.mime_object.to_part().getContentEncoding ();
     }
 
-    auto get_filename ()
+    auto getFilename ()
     {
         return this.mime_object.to_part().get_filename ();
     }
 
-    auto get_data()
+    auto getData()
     {
-        datawrapper = this.mime_object.to_part().get_content_object();
+        datawrapper = this.mime_object.to_part().getContentObject();
         return datawrapper.get_data();
     }
+}
 
 class Multipart:MimeObject
 {
@@ -634,43 +649,49 @@ class Multipart:MimeObject
         this.parent = parent;
         // super(Multipart, this).__init__(multipart, parent)
     }
-    bool is_multipart()
+    bool isMultipart()
     {
         return true
     }
 
-    bool is_encryptes()
+    bool isEncryptes()
     {
         return false;
     }
 
-    bool is_signed()
+    bool isSigned()
     {
         return false;
     }
 
-    auto get_child_count()
+    auto getChildCount()
     {
         return this.mime_object.to_multipart().get_count();
     }
 
-    auto get_child( idx)
+    auto getChild( idx)
     {
-        if (idx >= this.get_child_count())
+        if (idx >= this.getChildCount())
             raise MultipartError;
         else
         {
             auto prt = this.mime_object.to_multipart().get_part(idx);
-            return MimeObject._mk_mime_object(prt, this);
+            return MimeObject._mkMimeObject(prt, this);
         }
     }
 
-    def has_children():
-        return true
+    bool hasChildren()
+    {
+        return true;
+    }
 
-    def children():
-        for idx in xrange(this.get_child_count()):
-            yield this.get_child(idx)
+    auto children()
+    {
+        for idx in xrange(this.getChildCount())
+        {
+            yield this.getChild(idx);
+        }
+    }
 }
 
 class Encrypted(Multipart)
@@ -689,7 +710,7 @@ class Encrypted(Multipart)
         if (!GPG_ENABLED)
             throw new DMimeException("The GnuPGInterface module is not available. Can't decrypt.");
 
-        auto ciphertext = this.get_child(1).get_data();
+        auto ciphertext = this.getChild(1).get_data();
         
         auto gnupg = GnuPGInterface.GnuPG();
         if (passphrase)

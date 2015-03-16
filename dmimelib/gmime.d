@@ -1,9 +1,11 @@
 module dmimelib.gmime;
-import std.stdio;
+import std.stdio:writefln;
 import std.conv;
 import std.exception;
 import std.typecons;
 import dmimelib.cbindings;
+import std.string;
+import std.c.stdio;
 
 void init()
 {
@@ -15,11 +17,29 @@ void init(int flags)
     g_mime_init(flags);
 }
 
+
+string ZtoString(in ubyte* c)
+{
+    return to!string(fromStringz(cast(char*)c));
+}
+string ZtoString(char[] c)
+{
+    return to!string(fromStringz(cast(char*)c));
+}
+
+string ZtoString(char* c)
+{
+    return to!string(fromStringz(c));
+}
+
+ubyte* toStringzu(string s)
+{
+    return cast(ubyte*) toStringz(s);
+}
 /**
     UTILS
 */
-
-auto decodeHeaderDate(char *date)
+auto decodeHeaderDate(string date)
 {
     /**
         Note that while the tz_offset optionally goes into a pointer in
@@ -27,18 +47,18 @@ auto decodeHeaderDate(char *date)
         decide what they want to do with the offset.
     */
     int tz_offset;
-    auto timestamp = g_mime_utils_header_decode_date(cast(ubyte*)date, &tz_offset);
+    auto timestamp = g_mime_utils_header_decode_date(toStringzu(date), &tz_offset);
     return tuple(timestamp, tz_offset);
 }
 
-ubyte* generateMessageId (ubyte *fqdn)
+string generateMessageId (string fqdn)
 {
-    return g_mime_utils_generate_message_id(fqdn);
+    return ZtoString(g_mime_utils_generate_message_id(toStringzu(fqdn)));
 }
 
-auto decodeMessageId (char *message_id)
+string decodeMessageId (string message_id)
 {
-    return g_mime_utils_decode_message_id(cast(ubyte*)message_id);
+    return ZtoString(g_mime_utils_decode_message_id(toStringzu(message_id)));
 }
 
 /**
@@ -52,25 +72,25 @@ struct References
     {
         this._c_gmreferences = gmr;
     }
-    auto getMessageId()
+    string getMessageId()
     {
-        return g_mime_references_get_message_id(this._c_gmreferences);
+        return ZtoString(g_mime_references_get_message_id(this._c_gmreferences));
     }
 
-    auto get_next()
+    auto getNext()
     {
         GMimeReferences *next_gmr = g_mime_references_get_next(this._c_gmreferences);
         return mkReferences(next_gmr);
     }
     
-    void append(char *msg_id)
+    void append(string msg_id)
     {
-        g_mime_references_append(&this._c_gmreferences, cast(ubyte*)msg_id);
+        g_mime_references_append(&this._c_gmreferences, toStringzu(msg_id));
     }
 
     auto isNull()
     {
-        return this._c_gmreferences is null;
+        return (this._c_gmreferences is null);
     }
 }
 
@@ -82,9 +102,9 @@ auto mkReferences(GMimeReferences *gmr)
 }
 
 // text to References
-auto decodeReferences(char *text)
+auto decodeReferences(string text)
 {
-    GMimeReferences *gmr = g_mime_references_decode(cast(ubyte*)text);
+    GMimeReferences *gmr = g_mime_references_decode(toStringzu(text));
     return mkReferences(gmr);
 }
 
@@ -101,9 +121,9 @@ class Stream
         this._c_gmstream = _c_gmstream;
     }
 
-    this(char* filename)
+    this(string filename)
     {
-        FILE* fp = fopen(filename, "rb");
+        FILE* fp = fopen(toStringz(filename), "rb");
         if (fp is null)
             throw new Exception(format("File %s not found",filename));
         GMimeStream *gms = g_mime_stream_file_new(fp);
@@ -124,22 +144,23 @@ class Stream
 
     this(ubyte[] data)
     {
-        GByteArray *garray = g_byte_array_new();
-        g_byte_array_append(garray, data, len(data));
-        GMimeStream *gms = g_mime_stream_mem_new_with_byte_array(garray);
-        this._from_gmime_stream(gms);
+        //GByteArray *garray = g_byte_array_new();
+        //g_byte_array_append(garray, data.ptr, cast(int)data.length);
+        //GMimeStream *gms = g_mime_stream_mem_new_with_byte_array(garray);
+        GMimeStream *gms = g_mime_stream_mem_new_with_buffer(data.ptr,data.length);
+        this(gms);
     }
 
     auto makeParser()
     {
         GMimeParser *gmp = g_mime_parser_new_with_stream(this._c_gmstream);
-        return mk_parser(gmp);
+        return new Parser(gmp);
     }
 
     auto make_data_wrapper(GMimeContentEncoding encoding)
     {
         GMimeDataWrapper *gmdw = g_mime_data_wrapper_new_with_stream(this._c_gmstream, encoding);
-        return mk_data_wrapper(gmdw);
+        return mkDataWrapper(gmdw);
     }
 
     void reset()
@@ -185,20 +206,20 @@ class Parser
 
     auto constructPart()
     {
-        return mk_mime_object(g_mime_parser_construct_part(this._c_gmparser));
+        return mkMimeObject(g_mime_parser_construct_part(this._c_gmparser));
     }
 
     auto constructMessage()
     {
         GMimeMessage *msg = g_mime_parser_construct_message(this._c_gmparser);
-        return mk_message(msg);
+        return new Message(msg);
     }
 }
 
 // Initializer from a GMimeStream
-Parser mkParser (GMimeParser *gmp)
+auto mkParser (GMimeParser *gmp)
 {
-    return Parser(gmp);
+    return new Parser(gmp);
 }
 
 /**
@@ -216,7 +237,7 @@ class DataWrapper
 
     auto getData()
     {
-        GByteArray *garray = g_byte_array_new();
+        GByteArray *garray = gmime_byte_array_new();
         GMimeStream *outstream = g_mime_stream_mem_new_with_byte_array(garray);
         g_mime_data_wrapper_write_to_stream (this._c_gmdatawrapper, outstream);
         // We have to call an explicit slice to get the length, because strlen() will fail with bytearrays that have \x00 in them.
@@ -232,40 +253,45 @@ DataWrapper mkDataWrapper (GMimeDataWrapper *gmdw)
 }
 
 /**
-    CIPHER CONTEXT
+    CIPHER CONTEXT - removed in 2.6
 */
+/++
 
-class CipherContext
-{
-    GMimeCipherContext *_c_gmciphercontext;
-
-    this(GMimeCipherContext *gmctx)
+    class CipherContext
     {
-        this._c_gmciphercontext = gmctx;
+        GMimeCipherContext *_c_gmciphercontext;
+
+        this()
+        {
+
+        }
+        this(GMimeCipherContext *gmctx)
+        {
+            this._c_gmciphercontext = gmctx;
+        }
+
+        auto isGpgContext()
+        {
+            return GMIME_IS_GPG_CONTEXT(this._c_gmciphercontext);
+        }
+
+        auto toGpgContext()
+        {
+            return mkGpgContext (GMIME_GPG_CONTEXT(this._c_gmciphercontext));
+        }
     }
 
-    auto isGpgContext()
+    // Initializer from a GMimeCipherContext
+    CipherContext mkCipherContext (GMimeCipherContext *gmctx)
     {
-        return GMIME_IS_GPG_CONTEXT(this._c_gmciphercontext);
+        return new CipherContext(gmctx);
     }
-
-    auto toGpgContext()
-    {
-        return mkGpgContext (GMIME_GPG_CONTEXT(this._c_gmciphercontext));
-    }
-}
-
-// Initializer from a GMimeCipherContext
-CipherContext mkCipherContext (GMimeCipherContext *gmctx)
-{
-    return new CipherContext(gmctx);
-}
-
++/
 /**
-    GPG CIPHER CONTEXT
+    GPG CIPHER CONTEXT - used to subclass Ciphercontext - now not
 */
 
-class GPGContext(CipherContext)
+class GPGContext
 {
     GMimeGpgContext *_c_gmgpgcontext;
 
@@ -273,7 +299,7 @@ class GPGContext(CipherContext)
     this(GMimeGpgContext *gmgpg)
     {
         this._c_gmgpgcontext = gmgpg;
-        this._c_gmciphercontext = GMIME_CIPHER_CONTEXT(gmgpg);
+//        this._c_gmciphercontext = GMIME_CIPHER_CONTEXT(gmgpg); - need to fix this
     }
 
     void setAlwaysTrust(bint always_trust)
@@ -290,60 +316,64 @@ auto mkGpgContext (GMimeGpgContext *gmgpg)
 
 /**
     GMIME SESSION
+
+    Removed in 2.6
 */
+/++
+    Dead Code
 
-class Session
-{
-    GMimeSession *_c_gmsession;
-
-    this()
+    class Session
     {
-        this._c_gmsession = GMIME_SESSION (g_object_new( g_mime_session_get_type(), null) );
-    }
+        GMimeSession *_c_gmsession;
 
-    auto requestPassword(char* prompt, bint secret, char *item)
-    {
-        GError *err = null;
-        char *passwd = g_mime_session_request_passwd(this._c_gmsession, prompt, secret, item, &err);
-        if (err !is null)
-            throw new Exception("Error requesting password: " ~ err.message);
-        else
-            return passwd;
-    }
+        this()
+        {
+            this._c_gmsession = GMIME_SESSION (g_mime_object_new( g_mime_session_get_type()),null );
+        }
 
-    void forgetPassword(char *item)
-    {
-        GError *err = null;
-        g_mime_session_forget_passwd(this._c_gmsession, item, &err);
-        if (err !is null)
-            throw new Exception("Error forgetting password: " ~ err.message);
-    }
+        string requestPassword(string prompt, bint secret, string item)
+        {
+            GError *err = null;
+            string passwd = ZtoString(g_mime_session_request_passwd(this._c_gmsession, toStringzu(prompt), secret, toStringzu(item), &err));
+            if (err !is null)
+                throw new Exception("Error requesting password: " ~ ZtoString(err.message));
+            else
+                return passwd;
+        }
 
-    auto isOnline()
-    {
-        return g_mime_session_is_online (this._c_gmsession);
-    }
+        void forgetPassword(string item)
+        {
+            GError *err = null;
+            g_mime_session_forget_passwd(this._c_gmsession, toStringzu(item), &err);
+            if (err !is null)
+                throw new Exception("Error forgetting password: " ~ ZtoString(err.message));
+        }
 
-    auto newGpgContext(char *path)
-    {
-        GMimeCipherContext *ctx = g_mime_gpg_context_new(this._c_gmsession, path);
-        return mk_cipher_context(ctx);
-    }
-}
+        auto isOnline()
+        {
+            return g_mime_session_is_online (this._c_gmsession);
+        }
 
+        auto newGpgContext(string path)
+        {
+            GMimeCipherContext *ctx = g_mime_gpg_context_new(this._c_gmsession, toStringzu(path));
+            return mkCipherContext(ctx);
+        }
+    }
 /**
-    GMIME SESSION SIMPLE (SESSION)
-*/
+        GMIME SESSION SIMPLE (SESSION)
+    */
 
-class SessionSimple:Session
-{
-    GMimeSessionSimple *_c_gmsessionsimple;
-
-    this()
+    class SessionSimple:Session
     {
-        super(SessionSimple, this).__init__();
+        GMimeSessionSimple *_c_gmsessionsimple;
+
+        this()
+        {
+            super();
+        }
     }
-}
+++/
 
 /**
     MIME OBJECT
@@ -359,6 +389,10 @@ class MimeObject
 
     GMimeObject *_c_gmobject;
 
+    this()
+    {
+
+    }
     this (GMimeObject *obj)
     {
         this._c_gmobject = obj;
@@ -367,20 +401,19 @@ class MimeObject
     auto getHeaders()
     {
         GMimeHeaderList *gmhl = g_mime_object_get_header_list(this._c_gmobject);
-        return mk_header_list(gmhl);
+        return mkHeaderList(gmhl);
     }
 
-    auto _toString()
+    string toString()
     {
-        return g_mime_object_to_string (this._c_gmobject);
+        return ZtoString(g_mime_object_to_string (this._c_gmobject));
     }
 
     auto makeStream()
     {
         GMimeStream *gmstrm = g_mime_stream_mem_new ();
         g_mime_object_write_to_stream(this._c_gmobject, gmstrm);
-        auto stream = Stream();
-        stream._from_gmime_stream(gmstrm);
+        auto stream = new Stream(gmstrm);
         stream.reset();
         return stream;
     }
@@ -396,7 +429,7 @@ class MimeObject
             throw new Exception("Can't convert to part");
 
         GMimePart *gmp = GMIME_PART (this._c_gmobject);
-        return mk_part(gmp);
+        return mkPart(gmp);
     }
     
     auto isMultipart()
@@ -423,7 +456,7 @@ class MimeObject
         if (!this.isMessage())
             throw new Exception("Can't convert to message");
         GMimeMessage *gmsg = GMIME_MESSAGE(this._c_gmobject);
-        return mkMessage(gmsg);
+        return new Message(gmsg);
     }
 
     auto isMessagePart()
@@ -456,7 +489,7 @@ class Part:MimeObject
 
     this()
     {
-        //MimeObject.__init__()
+        super(); //MimeObject.__init__()
     }
     
     this(GMimePart *gmp)
@@ -469,42 +502,42 @@ class Part:MimeObject
     {
         GMimeObject *gmobj = this._c_gmobject;
         GMimeDataWrapper *gmdw = g_mime_part_get_content_object (GMIME_PART(gmobj));
-        return mk_data_wrapper(gmdw);
+        return mkDataWrapper(gmdw);
     }
         
-    auto getContentDescription ()
+    string getContentDescription ()
     {
-        return g_mime_part_get_content_description (this._c_gmpart);
+        return ZtoString(g_mime_part_get_content_description (this._c_gmpart));
     }
 
-    auto getContentId()
+    string getContentId()
     {
-        return g_mime_part_get_content_id (this._c_gmpart);
+        return ZtoString(g_mime_part_get_content_id (this._c_gmpart));
     }
 
-    auto getContentMd5()
+    string getContentMd5()
     {
-        return g_mime_part_get_content_md5 (this._c_gmpart);
+        return ZtoString(g_mime_part_get_content_md5 (this._c_gmpart));
     }
 
-    auto verifyContentMd5()
+    int verifyContentMd5()
     {
         return g_mime_part_verify_content_md5 (this._c_gmpart);
     }
 
-    auto getContentLocation ()
+    string getContentLocation ()
     {
-        return g_mime_part_get_content_location (this._c_gmpart);
+        return ZtoString(g_mime_part_get_content_location (this._c_gmpart));
     }
 
-    auto getContentEncoding()
+    GMimeContentEncoding getContentEncoding()
     {
         return g_mime_part_get_content_encoding (this._c_gmpart);
     }
 
-    auto getFilename()
+    string getFilename()
     {
-        return g_mime_part_get_filename (this._c_gmpart);
+        return ZtoString(g_mime_part_get_filename (this._c_gmpart));
     }
 }
 
@@ -524,17 +557,15 @@ class Multipart:MimeObject
 
     this()
     {
-        MimeObject.__init__();
     }
 
     this(GMimeMultipart *gmmp)
     {
-        MimeObject.__init__();
         this._c_gmmultipart = gmmp;
         this._c_gmobject = GMIME_OBJECT(gmmp);
     }
 
-    auto getCount()
+    int getCount()
     {
         return g_mime_multipart_get_count (this._c_gmmultipart);
     }
@@ -542,13 +573,16 @@ class Multipart:MimeObject
     auto getPart(int partidx)
     {
         GMimeObject *obj = g_mime_multipart_get_part (this._c_gmmultipart, partidx);
-        return mk_mime_object(obj);
+        return mkMimeObject(obj);
     }
 
-    void getSubpartFromContentId(char *content_id)
+    void getSubpartFromContentId(string content_id)
     {
-        GMimeObject *obj = g_mime_multipart_get_subpart_from_content_id (this._c_gmmultipart, content_id);
+        GMimeObject *obj = g_mime_multipart_get_subpart_from_content_id (this._c_gmmultipart, toStringzu(content_id));
     }
+
+    /**
+    need to fix these
 
     auto isMultipartEncrypted()
     {
@@ -563,7 +597,7 @@ class Multipart:MimeObject
         GMimeMultipartEncrypted *gmme = GMIME_MULTIPART_ENCRYPTED (this._c_gmobject);
         return mkMultipartEncrypted(gmme);
     }
-
+    */
     auto isMultipartSigned()
     {
         return GMIME_IS_MULTIPART_SIGNED (this._c_gmobject);
@@ -571,11 +605,11 @@ class Multipart:MimeObject
 
     auto toMultipartSigned()
     {
-        if  (!this.is_multipart())
+        if  (!this.isMultipart())
             throw new Exception("Can't convert to multipart encrypted");
 
         GMimeMultipartSigned *gmms = GMIME_MULTIPART_SIGNED (this._c_gmobject);
-        return mk_multipart_signed(gmms);
+        return mkMultipartSigned(gmms);
     }
 }
 
@@ -588,22 +622,25 @@ Multipart mkMultipart(GMimeMultipart *gmmp)
 /**
     MULTIPART ENCRYPTED (MULTIPART)
 */
+/**
+    need to switch to GPG context
 
 class MultipartEncrypted:Multipart
 {
     GMimeMultipartEncrypted *_c_gmmultipartencrypted;
+    GMimeObject *_c_gmobject;
+    GMimeMultipart *_c_gmmultipart;
 
     this()
     {
-        Multipart.__init__();
+        
     }
 
     this(GMimeMultipartEncrypted *gmpe)
     {
-        Multipart.__init__();
         this._c_gmmultipartencrypted = gmpe;
         this._c_gmobject = GMIME_OBJECT(gmpe);
-        this._c_gmmultipart = GMIME_MULTIPART(mpe._c_gmobject);
+        this._c_gmmultipart = GMIME_MULTIPART(_c_gmobject); // check this
     }
 
     auto decrypt(CipherContext ctx)
@@ -611,9 +648,9 @@ class MultipartEncrypted:Multipart
         GError *err = null;
         GMimeObject *obj = g_mime_multipart_encrypted_decrypt(this._c_gmmultipartencrypted, ctx._c_gmciphercontext, &err);
         if (err !is null)
-            throw new Exception, "decryption failed: " ~ err.message;
+            throw new Exception("decryption failed: " ~ ZtoString(err.message));
         else
-            return mk_mime_object(obj);
+            return mkMimeObject(obj);
     }
 }
 
@@ -622,18 +659,25 @@ MultipartEncrypted mkMultipartEncrypted(GMimeMultipartEncrypted *gmpe)
 {
     return new MultipartEncrypted(gmpe);
 }
+*/
 
 /**
-    MULTIPART SIGNED (MULTIPART)
+    MULTIPART SIGNED (MULTIPART) - need to switch to GPG context
 */
 
 class MultipartSigned:Multipart
 {
     GMimeMultipartSigned *_c_gmmultipartsigned;
+    GMimeObject *_c_gmobject;
+    GMimeMultipart *_c_gmmp;
 
     this()
     {
-        Multipart.__init__();
+    }
+
+    this(GMimeMultipartSigned *gmps)
+    {
+        this._c_gmmultipartsigned=gmps;
     }
 
 
@@ -653,10 +697,9 @@ class MultipartSigned:Multipart
 }
 
 // Static initializer
-MultipartEncrypted mkMultipartSigned(GMimeMultipartSigned *gmps)
+auto mkMultipartSigned(GMimeMultipartSigned *gmps)
 {
-    mps = MultipartSigned();
-    mps._c_gmmultipartsigned = gmps;
+    auto mps = new MultipartSigned(gmps);
     mps._c_gmobject = GMIME_OBJECT(gmps);
     mps._c_gmmultipart = GMIME_MULTIPART(mps._c_gmobject);
     return mps;
@@ -673,49 +716,47 @@ class Message:MimeObject
 
     this()
     {
-        MimeObject.__init__();
     }
 
     this(GMimeMessage *gmmsg)
     {
-        MimeObject.__init__();
         this._c_gmmessage = gmmsg;
         this._c_gmobject = GMIME_OBJECT(gmmsg);
     }
 
-    auto getSender()
+    string getSender()
     {
-        return g_mime_message_get_sender(this._c_gmmessage);
+        return ZtoString(g_mime_message_get_sender(this._c_gmmessage));
     }
 
-    auto getReplyTo()
+    string getReplyTo()
     {
-        return g_mime_message_get_reply_to(this._c_gmmessage);
+        return ZtoString(g_mime_message_get_reply_to(this._c_gmmessage));
     }
 
-    auto getSubject()
+    string getSubject()
     {
-        return g_mime_message_get_subject(this._c_gmmessage);
+        return ZtoString(g_mime_message_get_subject(this._c_gmmessage));
     }
 
-    auto getDateAsString()
+    string getDateAsString()
     {
-        return g_mime_message_get_date_as_string(this._c_gmmessage);
+        return ZtoString(g_mime_message_get_date_as_string(this._c_gmmessage));
     }
 
-    auto getMessageId()
+    string getMessageId()
     {
-        return g_mime_message_get_message_id(this._c_gmmessage);
+        return ZtoString(g_mime_message_get_message_id(this._c_gmmessage));
     }
 
     auto getMimePart()
     {
         GMimeObject *obj = g_mime_message_get_mime_part(this._c_gmmessage);
-        return mk_mime_object(obj);
+        return mkMimeObject(obj);
     }
 }
 // Static initalizer
-Message mk_message(GMimeMessage *gmmsg)
+auto mkMessage(GMimeMessage *gmmsg)
 {
     return new Message(gmmsg);
 }
@@ -730,7 +771,6 @@ class MessagePart:MimeObject
 
     this()
     {
-        MimeObject.__init__();
     }
 
     this(GMimeMessagePart *gmmp)
@@ -742,7 +782,7 @@ class MessagePart:MimeObject
     auto getMessage()
     {
         GMimeMessage *gmmsg = g_mime_message_part_get_message(this._c_gmmessagepart);
-        return mk_message(gmmsg);
+        return mkMessage(gmmsg);
     }
 }
 // Static initalizer
@@ -771,15 +811,15 @@ class Headers
         this.iterDone = false;
         this._c_gmheaderlist = gmhdrs;
         this._header_iter = g_mime_header_iter_new();
-        g_mime_header_list_get_iter(h._c_gmheaderlist, this._header_iter);
+        g_mime_header_list_get_iter(this._c_gmheaderlist, this._header_iter);
     }
 
-    auto iterGetName()
+    string iterGetName()
     {
-        return g_mime_header_iter_get_name (this._header_iter);
+        return ZtoString(g_mime_header_iter_get_name (this._header_iter));
     }
 
-    auto iterGetBalue()
+    auto iterGetValue()
     {
         return g_mime_header_iter_get_value (this._header_iter);
     }
@@ -809,9 +849,9 @@ class Headers
         return g_mime_header_iter_is_valid (this._header_iter);
     }
 
-    auto get(char *name)
+    auto get(string name)
     {
-        auto value = g_mime_header_list_get(this._c_gmheaderlist, name);
+        auto value = g_mime_header_list_get(this._c_gmheaderlist, toStringzu(name));
         if (value is null)
             throw new Exception("KeyError: "~name);
         else
@@ -841,40 +881,40 @@ class ContentType
             this._from_gmime_content_type(g_mime_content_type_new_from_string (s))
     */
 
-    string _toString()
+    string toString()
     {
-        return g_mime_content_type_to_string (this._c_gmcontenttype);
+        return ZtoString(g_mime_content_type_to_string (this._c_gmcontenttype));
     }
 
-    auto getMediaType ()
+    string getMediaType ()
     {
-        return g_mime_content_type_get_media_type (this._c_gmcontenttype);
+        return ZtoString(g_mime_content_type_get_media_type (this._c_gmcontenttype));
     }
 
-    auto getMediaSubtype ()
+    string getMediaSubtype ()
     {
-        return g_mime_content_type_get_media_subtype (this._c_gmcontenttype);
+        return ZtoString(g_mime_content_type_get_media_subtype (this._c_gmcontenttype));
     }
 
     auto getParams ()
     {
         GMimeParam* gmp = g_mime_content_type_get_params (this._c_gmcontenttype);
-        return mk_parameters(gmp);
+        return mkParameters(gmp);
     }
 
-    auto getParameter (char *attribute)
+    auto getParameter (string attribute)
     {
-        return g_mime_content_type_get_parameter (this._c_gmcontenttype, attribute);
+        return g_mime_content_type_get_parameter (this._c_gmcontenttype, toStringzu(attribute));
     }
 }
 
 
 // Static construction function
-auto stringToContentType(char *string)
+auto stringToContentType(string string)
 {
     // A static function that takes a string and returns a ContentType() class.
-    ContentType ct = ContentType();
-    ct._c_gmcontenttype = g_mime_content_type_new_from_string (string);
+    ContentType ct = new ContentType();
+    ct._c_gmcontenttype = g_mime_content_type_new_from_string (toStringzu(string));
     return ct;
 }
 
@@ -885,14 +925,14 @@ auto stringToContentType(char *string)
 
 class Param
 {
-    GMimeParam *_c_gmparameters;
+    const (GMimeParam *) _c_gmparameters;
     
     private bool isNull()
     {
         return (this._c_gmparameters is null);
     }
-    
-    this(GMimeParam *gmp)
+ 
+    this(in GMimeParam *gmp)
     {
         this._c_gmparameters = gmp;
     }
@@ -910,22 +950,18 @@ class Param
             return g_mime_param_get_name(this._c_gmparameters);
     }
                                                                
-    auto getValue()
+    string getValue()
     {
-        if (this.is_null())
+        if (this.isNull())
             return null;
         else
-            return g_mime_param_get_value(this._c_gmparameters);
+            return ZtoString(g_mime_param_get_value(this._c_gmparameters));
     }
 
-    void _from_gmime_parameters(GMimeParam *gmp)
-    {
-        this._c_gmparameters = gmp;
-    }
 }
 
 // Static initalizer
-Param mkParameters(GMimeParam *gmp)
+Param mkParameters(in GMimeParam *gmp)
 {
     return new Param(gmp);
 }
@@ -944,7 +980,7 @@ class ContentDisposition
 
     this(string s)
     {
-        this._from_gmime_content_disposition(g_mime_content_disposition_new_from_string (s));
+        this(g_mime_content_disposition_new_from_string (toStringzu(s)));
     }
 
     auto getDisposition()
@@ -954,25 +990,24 @@ class ContentDisposition
 
     auto getParams()
     {
-        GMimeParam *gmp = g_mime_content_disposition_get_params (this._c_gmcontentdisposition);
-        param = Param();
-        param._from_gmime_parameters(gmp);
+        const (GMimeParam *)gmp = g_mime_content_disposition_get_params (this._c_gmcontentdisposition);
+        auto param = new Param(gmp);
         return param;
     }
 
-    auto getParameter(char *attribute)
+    auto getParameter(string attribute)
     {
-        return g_mime_content_disposition_get_parameter (this._c_gmcontentdisposition, attribute);
+        return g_mime_content_disposition_get_parameter (this._c_gmcontentdisposition, toStringzu(attribute));
     }
 
     string toString(bint fold = true)
     {
-        return g_mime_content_disposition_to_string (this._c_gmcontentdisposition, fold);
+        return ZtoString(g_mime_content_disposition_to_string (this._c_gmcontentdisposition, fold));
     }
 }
 
 // Static construction function
-ContentDisposition stringToContentDisposition(char *s)
+ContentDisposition stringToContentDisposition(string s)
 {
     //A static function that takes a string and returns a ContentDisposition() class.
     return new ContentDisposition(s);
@@ -986,24 +1021,28 @@ class InternetAddress
 {
     CInternetAddress *_c_internet_address;
     
+    this()
+    {
+
+    }
     this(CInternetAddress *cia)
     {
          this._c_internet_address = cia;
     }
 
-    auto getName()
+    string getName()
     {
-        return internet_address_get_name(this._c_internet_address);
+        return ZtoString(internet_address_get_name(this._c_internet_address));
     }
      
-    void setName(char *name)
+    void setName(string name)
     {
-        internet_address_set_name(this._c_internet_address, name);
+        internet_address_set_name(this._c_internet_address, toStringzu(name));
     }
 
     string toString(bint encode=true)
     {
-        return internet_address_to_string(this._c_internet_address, encode);
+        return ZtoString(internet_address_to_string(this._c_internet_address, encode));
     }
 
     auto isInternetAddressMailbox()
@@ -1013,10 +1052,10 @@ class InternetAddress
 
     auto toInternetAddressMailbox()
     {
-        if (!this.is_internet_address_mailbox())
+        if (!this.isInternetAddressMailbox())
             throw new Exception("Can't convert to message");
         CInternetAddressMailbox *iam = INTERNET_ADDRESS_MAILBOX(this._c_internet_address);
-        return mk_internet_address_mailbox(iam);
+        return mkInternetAddressMailbox(iam);
     }
 
     auto isInternetAddressGroup()
@@ -1026,7 +1065,7 @@ class InternetAddress
 
     auto toInternetAddressGroup()
     {
-        if (!this.is_internet_address_group())
+        if (!this.isInternetAddressGroup())
             throw new Exception("Can't convert to message");
         CInternetAddressGroup *iag = INTERNET_ADDRESS_GROUP(this._c_internet_address);
         return mkInternetAddressGroup(iag);
@@ -1074,7 +1113,7 @@ class InternetAddressList
     auto getAddress(int idx)
     {
         CInternetAddress *cia = internet_address_list_get_address (this._c_internet_address_list, idx);
-        return mk_internet_address(cia);
+        return mkInternetAddress(cia);
     }
 
     string toString(bool encode=true)
@@ -1083,7 +1122,7 @@ class InternetAddressList
         if (ret is null)
             return "";
         else
-            return ret;
+            return ZtoString(ret);
     }
 
     void append(InternetAddressList other)
@@ -1093,7 +1132,7 @@ class InternetAddressList
 
     auto add(InternetAddress addr)
     {
-        idx = internet_address_list_add (this._c_internet_address_list, addr._c_internet_address);
+        auto idx = internet_address_list_add (this._c_internet_address_list, addr._c_internet_address);
         return idx;
     }
 
@@ -1104,7 +1143,7 @@ class InternetAddressList
 
     void remove(InternetAddress addr)
     {
-        out_bool = internet_address_list_remove (this._c_internet_address_list, addr._c_internet_address);
+        auto out_bool = internet_address_list_remove (this._c_internet_address_list, addr._c_internet_address);
         if (!out_bool)
             throw new Exception(format("InternetAddressListError: Couldn't remove item %s",addr));
     }
@@ -1120,18 +1159,18 @@ class InternetAddressList
 
 InternetAddressList mkInternetAddressList(CInternetAddressList *cial)
 {
-    auto InternetAddressList ial = new InternetAddressList();
+    InternetAddressList ial = new InternetAddressList();
     ial._c_internet_address_list = cial;
     return ial;
 }
 
 
 // Static construction function
-auto parseInternetAddressList(char *s)
+auto parseInternetAddressList(string s)
 {
     // A static function that takes a string and returns an InternetAddressList() object.
-    CInternetAddressList *cial = internet_address_list_parse_string (s);
-    return mk_internet_address_list(cial);
+    CInternetAddressList *cial = internet_address_list_parse_string (toStringzu(s));
+    return mkInternetAddressList(cial);
 }
 
 /**
@@ -1142,9 +1181,9 @@ class InternetAddressMailbox:InternetAddress
 {
     CInternetAddressMailbox *_c_internet_address_mailbox;
 
-    this(char *name, char *addr)
+    this(string name, string addr)
     {
-        this._c_internet_address = internet_address_mailbox_new(name, addr);
+        this._c_internet_address = internet_address_mailbox_new(toStringzu(name), toStringzu(addr));
         this._c_internet_address_mailbox = INTERNET_ADDRESS_MAILBOX (this._c_internet_address);
     }
 
@@ -1154,14 +1193,14 @@ class InternetAddressMailbox:InternetAddress
         this._c_internet_address = INTERNET_ADDRESS(iam);
     }
 
-    auto getAddr()
+    string getAddr()
     {
-        return internet_address_mailbox_get_addr(this._c_internet_address_mailbox);
+        return ZtoString(internet_address_mailbox_get_addr(this._c_internet_address_mailbox));
     }
 
-    void setAddr(char *addr)
+    void setAddr(string addr)
     {
-        internet_address_mailbox_set_addr(this._c_internet_address_mailbox, addr);
+        internet_address_mailbox_set_addr(this._c_internet_address_mailbox, toStringzu(addr));
     }
 }        
 
@@ -1178,9 +1217,9 @@ class InternetAddressGroup:InternetAddress
 {
     CInternetAddressGroup *_c_internet_address_group;
 
-    this(char *name)
+    this(string name)
     {
-        this._c_internet_address = internet_address_group_new(name);
+        this._c_internet_address = internet_address_group_new(toStringzu(name));
         this._c_internet_address_group = INTERNET_ADDRESS_GROUP (this._c_internet_address);
     }
 
@@ -1193,13 +1232,13 @@ class InternetAddressGroup:InternetAddress
     auto getMembers()
     {
         CInternetAddressList *cial;
-        cial = internet_address_group_getMembers(this._c_internet_address_group);
-        return mk_internet_address_list(cial);
+        cial = internet_address_group_get_members(this._c_internet_address_group);
+        return mkInternetAddressList(cial);
     }
 
     auto setMembers(InternetAddressList members)
     {
-        internet_address_group_setMembers (this._c_internet_address_group, members._c_internet_address_list);
+        internet_address_group_set_members (this._c_internet_address_group, members._c_internet_address_list);
     }
 
     auto addMember(InternetAddress member)
